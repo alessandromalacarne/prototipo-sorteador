@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorteador do Auditório</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* ---------- Cores do "palco" (troque aqui para mudar o tema) ---------- */
+  :root {
+    --palco: #12062e;
+    --palco-2: #2e0f66;
+    --ouro: #ffc93c;
+    --vermelho: #e63946;
+    --texto: #fff8e7;
+    --texto-suave: #cbbcf0;
+    --painel: rgba(255, 255, 255, 0.06);
+    --borda: rgba(255, 201, 60, 0.35);
+    --titulo: 'Bungee', 'Arial Black', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--texto);
+    font-family: 'Nunito', system-ui, sans-serif;
+    background-color: var(--palco);
+    /* Holofotes do auditório: gradientes radiais por cima do fundo escuro */
+    background-image:
+      radial-gradient(ellipse at 15% -10%, rgba(255, 201, 60, 0.22), transparent 45%),
+      radial-gradient(ellipse at 85% -10%, rgba(230, 57, 70, 0.22), transparent 45%),
+      radial-gradient(ellipse at 50% 120%, var(--palco-2), var(--palco) 70%);
+    background-attachment: fixed;
+    padding: 0 16px 32px;
+  }
+
+  /* ---------- Letreiro com lâmpadas piscando ---------- */
+  .letreiro {
+    position: relative;
+    text-align: center;
+    max-width: 900px;
+    margin: 16px auto 24px;
+    padding: 30px 16px 24px;
+    border: 3px solid var(--ouro);
+    border-radius: 18px;
+    background: linear-gradient(#3b1580, #22094d);
+    box-shadow: 0 0 32px rgba(255, 201, 60, 0.35);
+  }
+  .letreiro::before,
+  .letreiro::after {
+    content: "";
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    height: 10px;
+    background: radial-gradient(circle, #fff6c4 0 3px, var(--ouro) 4px, transparent 5px) 0 50% / 20px 10px repeat-x;
+    animation: piscar 0.8s steps(2) infinite;
+  }
+  .letreiro::before { top: 7px; }
+  .letreiro::after { bottom: 7px; animation-delay: 0.4s; }
+  @keyframes piscar { 50% { opacity: 0.3; } }
+
+  h1 {
+    margin: 0;
+    font-family: var(--titulo);
+    font-weight: 400;
+    font-size: clamp(1.5rem, 5vw, 3rem);
+    color: var(--ouro);
+    text-shadow: 0 3px 0 #a0331f, 0 0 18px rgba(255, 201, 60, 0.6);
+  }
+  .letreiro p { margin: 6px 0 0; color: var(--texto-suave); font-weight: 700; }
+
+  /* ---------- Layout: painel | roda | resultados ---------- */
+  .palco {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr) 300px;
+    gap: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+    align-items: start;
+  }
+  @media (max-width: 1100px) {
+    .palco { grid-template-columns: 1fr; }
+    .centro { order: -1; }
+  }
+
+  .painel {
+    background: var(--painel);
+    border: 1px solid var(--borda);
+    border-radius: 16px;
+    padding: 18px;
+    backdrop-filter: blur(4px);
+  }
+  .painel h2 {
+    margin: 0 0 12px;
+    font-family: var(--titulo);
+    font-weight: 400;
+    font-size: 1.05rem;
+    color: var(--ouro);
+  }
+  .painel h2:not(:first-child) { margin-top: 22px; }
+
+  label { display: block; margin: 10px 0; font-size: 0.95rem; }
+  label.check { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  .dica { font-size: 0.85rem; color: var(--texto-suave); }
+
+  textarea, input[type=number] {
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px;
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--texto);
+    font: inherit;
+  }
+  textarea { resize: vertical; min-height: 200px; }
+  input[type=number] { width: 90px; }
+  input[type=range] { width: 100%; accent-color: var(--ouro); }
+  input[type=checkbox] { accent-color: var(--ouro); width: 18px; height: 18px; }
+
+  .linha { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+
+  button {
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 10px;
+    border: 1px solid var(--borda);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--texto);
+    padding: 8px 14px;
+  }
+  button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid var(--ouro); outline-offset: 2px; }
+
+  .aviso {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255, 201, 60, 0.12);
+    border: 1px solid var(--borda);
+    font-size: 0.88rem;
+  }
+
+  /* ---------- A roda ---------- */
+  .centro { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .roda-wrap {
+    position: relative;
+    width: min(100%, 72vh, 640px);
+    aspect-ratio: 1;
+  }
+  #roda { width: 100%; height: 100%; display: block; filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.6)); }
+  /* Ponteiro fixo no topo: a roda gira, ele não */
+  .ponteiro {
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 22px solid transparent;
+    border-right: 22px solid transparent;
+    border-top: 46px solid var(--vermelho);
+    filter: drop-shadow(0 0 0 var(--ouro)) drop-shadow(0 3px 4px rgba(0, 0, 0, 0.6));
+    z-index: 2;
+  }
+
+  .acoes { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .btn-grande {
+    font-family: var(--titulo);
+    font-weight: 400;
+    font-size: clamp(1.2rem, 3vw, 1.8rem);
+    padding: 14px 36px;
+    border: 3px solid #fff3b0;
+    border-radius: 999px;
+    background: linear-gradient(#ff5a5f, #c1121f);
+    color: #fff;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+    box-shadow: 0 6px 0 #7a0a12, 0 0 24px rgba(230, 57, 70, 0.6);
+    transition: transform 0.08s;
+  }
+  .btn-grande:hover:not(:disabled) { background: linear-gradient(#ff6b70, #d0142a); }
+  .btn-grande:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 #7a0a12; }
+  #status { margin: 0; color: var(--texto-suave); font-weight: 700; text-align: center; }
+
+  /* ---------- Resultados ---------- */
+  .sorteio h3 { margin: 14px 0 6px; font-size: 0.9rem; color: var(--texto-suave); }
+  .sorteio ol { margin: 0; padding-left: 22px; }
+  .sorteio li { margin: 6px 0; }
+  .sorteio li strong { font-size: 1.05rem; }
+  .comprovante { display: block; font-size: 0.78rem; color: var(--texto-suave); font-family: ui-monospace, monospace; }
+  .vazio { color: var(--texto-suave); font-size: 0.9rem; }
+
+  details.transparencia { margin-top: 22px; font-size: 0.9rem; line-height: 1.5; }
+  details.transparencia summary { cursor: pointer; font-weight: 900; color: var(--ouro); }
+  details.transparencia a { color: var(--ouro); }
+
+  /* ---------- Modo apresentação: some o painel de edição, roda cresce ---------- */
+  body.apresentacao .letreiro { margin-bottom: 12px; padding: 22px 16px 16px; }
+  body.apresentacao #painel-config { display: none; }
+  body.apresentacao .palco { grid-template-columns: minmax(0, 1fr) 320px; }
+  body.apresentacao .roda-wrap { width: min(100%, 78vh); }
+  @media (max-width: 1100px) { body.apresentacao .palco { grid-template-columns: 1fr; } }
+
+  /* ---------- Contagem regressiva e revelação ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: radial-gradient(circle, rgba(46, 15, 102, 0.85), rgba(10, 3, 26, 0.95));
+    text-align: center;
+  }
+  .overlay[hidden] { display: none; }
+  .numero {
+    font-family: var(--titulo);
+    font-size: clamp(8rem, 30vw, 18rem);
+    color: var(--ouro);
+    text-shadow: 0 8px 0 #a0331f, 0 0 60px rgba(255, 201, 60, 0.7);
+  }
+  .pop { animation: pop 0.7s ease-out; }
+  @keyframes pop {
+    from { transform: scale(2.2); opacity: 0; }
+    40% { transform: scale(0.95); opacity: 1; }
+    to { transform: scale(1); }
+  }
+  .chamada { margin: 0; font-size: clamp(1.2rem, 3vw, 2rem); font-weight: 900; color: var(--texto-suave); }
+  .nome-vencedor {
+    margin: 12px 0;
+    font-family: var(--titulo);
+    font-size: clamp(2.4rem, 9vw, 7rem);
+    line-height: 1.1;
+    color: var(--ouro);
+    text-shadow: 0 6px 0 #a0331f, 0 0 50px rgba(255, 201, 60, 0.7);
+    overflow-wrap: anywhere;
+  }
+  .posicao { margin: 0 0 24px; font-weight: 700; color: var(--texto-suave); }
+
+  #confete { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .letreiro::before, .letreiro::after, .pop { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="letreiro">
+  <h1>Sorteador do Auditório</h1>
+  <p>Quem vai levar essa? 🎤</p>
+</header>
+
+<main class="palco">
+  <!-- Coluna 1: quem participa e as regras -->
+  <aside class="painel" id="painel-config">
+    <h2>Participantes</h2>
+    <label for="nomes">Um nome por linha (ou separados por vírgula)</label>
+    <textarea id="nomes" spellcheck="false"></textarea>
+    <div class="linha">
+      <button type="button" id="btn-csv">Importar CSV</button>
+      <input type="file" id="arquivo-csv" accept=".csv,.txt" hidden>
+      <span id="contagem" class="dica"></span>
+    </div>
+    <div id="aviso-duplicados" class="aviso" hidden></div>
+    <label class="check"><input type="checkbox" id="ignorar-duplicados" checked> Ignorar nomes repetidos</label>
+
+    <h2>Regras</h2>
+    <label>Quantos vencedores? <input type="number" id="qtd-vencedores" min="1" value="1"></label>
+    <label class="check"><input type="checkbox" id="sem-repeticao" checked> Quem ganhou sai da roda</label>
+    <label for="duracao">Duração do giro: <strong id="duracao-valor">6 s</strong></label>
+    <input type="range" id="duracao" min="3" max="15" value="6">
+    <label class="check"><input type="checkbox" id="som" checked> Som ligado</label>
+  </aside>
+
+  <!-- Coluna 2: a roda -->
+  <section class="centro">
+    <div class="roda-wrap">
+      <div class="ponteiro" aria-hidden="true"></div>
+      <canvas id="roda" width="1000" height="1000" aria-label="Roda do sorteio"></canvas>
+    </div>
+    <div class="acoes">
+      <button type="button" id="btn-sortear" class="btn-grande">SORTEAR!</button>
+    </div>
+    <p id="status" aria-live="polite"></p>
+    <button type="button" id="btn-apresentacao">⛶ Modo apresentação</button>
+  </section>
+
+  <!-- Coluna 3: resultados e transparência -->
+  <aside class="painel">
+    <div class="linha">
+      <h2 style="margin:0">Resultados</h2>
+      <button type="button" id="btn-copiar">Copiar</button>
+    </div>
+    <div id="historico"></div>
+
+    <details class="transparencia">
+      <summary>Como garantimos um sorteio justo?</summary>
+      <p><strong>1. O vencedor é decidido antes da roda girar.</strong> A animação é só o show: ela recebe o resultado pronto e para em cima dele.</p>
+      <p><strong>2. Usamos o gerador criptográfico do navegador</strong> (<code>crypto.getRandomValues</code>), o mesmo tipo de fonte de aleatoriedade usada para proteger conexões HTTPS, e não o <code>Math.random</code>, que é previsível.</p>
+      <p><strong>3. Sem viés.</strong> Um truque ingênuo (<code>número % total</code>) favorece levemente os primeiros da lista. Aqui descartamos os números que causariam esse viés e sorteamos de novo.</p>
+      <p><strong>4. Comprovante.</strong> Cada resultado mostra o número sorteado, o total de nomes na roda e o horário.</p>
+      <p>Curiosidade: a Cloudflare usa uma parede de <a href="https://www.cloudflare.com/pt-br/learning/ssl/lava-lamp-encryption/" target="_blank" rel="noopener">lâmpadas de lava</a> como uma das fontes de aleatoriedade da criptografia dela.</p>
+    </details>
+  </aside>
+</main>
+
+<!-- Tela de suspense e revelação -->
+<div id="overlay" class="overlay" hidden>
+  <div id="contagem-regressiva" class="numero"></div>
+  <div id="revelacao" hidden>
+    <p class="chamada">E quem leva é…</p>
+    <p id="nome-vencedor" class="nome-vencedor"></p>
+    <p id="posicao-vencedor" class="posicao"></p>
+    <button type="button" id="btn-continuar" class="btn-grande">Continuar</button>
+  </div>
+</div>
+
+<canvas id="confete"></canvas>
+
+<script>
+/* =====================================================================
+   1. ALEATORIEDADE — a parte que precisa ser justa
+   ===================================================================== */
+
+// Devolve um inteiro de 0 até max-1, com a mesma chance para cada um.
+// crypto.getRandomValues gera números de 32 bits (0 a 4.294.967.295).
+// Se fizermos só "numero % max", os restos menores aparecem um pouquinho
+// mais vezes (viés do módulo). Por isso descartamos o pedaço final que
+// não divide certinho e sorteamos de novo.
+function inteiroAleatorio(max) {
+  const limite = Math.floor(0x100000000 / max) * max;
+  const buffer = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(buffer);
+  } while (buffer[0] >= limite);
+  return buffer[0] % max;
+}
+
+/* =====================================================================
+   2. ESTADO E LEITURA DOS NOMES
+   ===================================================================== */
+
+const $ = (id) => document.getElementById(id);
+const TAU = Math.PI * 2;
+
+const NOMES_EXEMPLO = [
+  'Ana Souza', 'Bruno Lima', 'Carla Mendes', 'Diego Rocha', 'Eduarda Alves',
+  'Felipe Castro', 'Gabriela Nunes', 'Henrique Dias', 'Isabela Martins',
+  'João Pedro', 'Karina Lopes', 'Lucas Ferreira', 'Mariana Costa',
+  'Nicolas Ribeiro', 'Olívia Santos', 'Paulo Henrique', 'Rafaela Gomes',
+  'ana souza', // repetido de propósito, para mostrar a detecção de duplicados
+];
+
+const estado = {
+  vencedores: [],   // ids dos que já ganharam no sorteio atual
+  sorteios: [],     // histórico: [{ numero, inicio, resultados: [...] }]
+  girando: false,
+  rotacao: 0,       // ângulo atual da roda, em radianos
+};
+
+// "Ana Souza", "ana souza" e "Ána  Souza" viram a mesma chave
+function chave(nome) {
+  return nome.normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+// Lê a caixa de texto e devolve [{ id, nome }]
+function participantes() {
+  const brutos = $('nomes').value.split(/\r?\n|,/).map((n) => n.trim()).filter(Boolean);
+  const ignorar = $('ignorar-duplicados').checked;
+  const vistos = new Set();
+  const lista = [];
+  brutos.forEach((nome, id) => {
+    const k = chave(nome);
+    if (ignorar && vistos.has(k)) return;
+    vistos.add(k);
+    lista.push({ id, nome });
+  });
+  return lista;
+}
+
+function duplicados() {
+  const contagem = new Map();
+  $('nomes').value.split(/\r?\n|,/).map((n) => n.trim()).filter(Boolean).forEach((nome) => {
+    const k = chave(nome);
+    const atual = contagem.get(k) || { nome, vezes: 0 };
+    atual.vezes++;
+    contagem.set(k, atual);
+  });
+  return [...contagem.values()].filter((d) => d.vezes > 1);
+}
+
+// Quem ainda está concorrendo agora
+function participantesNaRoda() {
+  const todos = participantes();
+  if (!$('sem-repeticao').checked) return todos;
+  return todos.filter((p) => !estado.vencedores.includes(p.id));
+}
+
+function qtdVencedores() {
+  return Math.max(1, parseInt($('qtd-vencedores').value, 10) || 1);
+}
+
+function sorteioConcluido() {
+  return estado.vencedores.length >= qtdVencedores() || participantesNaRoda().length === 0;
+}
+
+/* =====================================================================
+   3. DESENHO DA RODA (canvas)
+   ===================================================================== */
+
+const CORES = ['#e63946', '#ffb703', '#1d70e0', '#2a9d8f', '#8e44ad', '#f77f00'];
+
+function corDaFatia(i, n) {
+  let cor = i % CORES.length;
+  // evita que a última fatia tenha a mesma cor da primeira
+  if (i === n - 1 && n > 1 && cor === 0) cor = 2;
+  return CORES[cor];
+}
+
+function encurtar(ctx, texto, larguraMax) {
+  if (ctx.measureText(texto).width <= larguraMax) return texto;
+  while (texto.length > 1 && ctx.measureText(texto + '…').width > larguraMax) texto = texto.slice(0, -1);
+  return texto + '…';
+}
+
+function desenharRoda(lista = participantesNaRoda()) {
+  const canvas = $('roda');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const c = W / 2;
+  const R = c - 40;
+  ctx.clearRect(0, 0, W, W);
+
+  // Aro dourado
+  const aro = ctx.createRadialGradient(c, c, R, c, c, R + 34);
+  aro.addColorStop(0, '#fff3b0');
+  aro.addColorStop(0.5, '#ffc93c');
+  aro.addColorStop(1, '#a8650a');
+  ctx.beginPath();
+  ctx.arc(c, c, R + 34, 0, TAU);
+  ctx.fillStyle = aro;
+  ctx.fill();
+
+  const n = lista.length;
+  if (n === 0) {
+    ctx.beginPath();
+    ctx.arc(c, c, R, 0, TAU);
+    ctx.fillStyle = '#2e0f66';
+    ctx.fill();
+    ctx.fillStyle = '#fff8e7';
+    ctx.font = '700 48px Nunito, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Adicione participantes', c, c);
+    return;
+  }
+
+  const fatia = TAU / n;
+  const tamanhoFonte = Math.max(14, Math.min(56, fatia * R * 0.42));
+
+  for (let i = 0; i < n; i++) {
+    const inicio = estado.rotacao + i * fatia;
+    ctx.beginPath();
+    ctx.moveTo(c, c);
+    ctx.arc(c, c, R, inicio, inicio + fatia);
+    ctx.closePath();
+    ctx.fillStyle = corDaFatia(i, n);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Nome escrito ao longo do raio, da borda para o centro
+    ctx.save();
+    ctx.translate(c, c);
+    ctx.rotate(inicio + fatia / 2);
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    // Nome comprido: primeiro diminui a fonte (até 60%), só depois corta com "…"
+    const larguraMax = R * 0.68;
+    ctx.font = `900 ${tamanhoFonte}px Nunito, sans-serif`;
+    const largura = ctx.measureText(lista[i].nome).width;
+    const fonte = largura > larguraMax ? Math.max(tamanhoFonte * 0.6, tamanhoFonte * larguraMax / largura) : tamanhoFonte;
+    ctx.font = `900 ${fonte}px Nunito, sans-serif`;
+    const texto = encurtar(ctx, lista[i].nome, larguraMax);
+    ctx.lineWidth = Math.max(3, fonte / 7);
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.strokeText(texto, R - 28, 0);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(texto, R - 28, 0);
+    ctx.restore();
+  }
+
+  // Pinos no aro, um em cada divisória (como na Roda a Roda)
+  if (n <= 120) {
+    for (let i = 0; i < n; i++) {
+      const a = estado.rotacao + i * fatia;
+      ctx.beginPath();
+      ctx.arc(c + (R + 17) * Math.cos(a), c + (R + 17) * Math.sin(a), 7, 0, TAU);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+    }
+  }
+
+  // Miolo central
+  const miolo = ctx.createRadialGradient(c - 20, c - 20, 10, c, c, 90);
+  miolo.addColorStop(0, '#fff3b0');
+  miolo.addColorStop(1, '#c98a00');
+  ctx.beginPath();
+  ctx.arc(c, c, 80, 0, TAU);
+  ctx.fillStyle = miolo;
+  ctx.fill();
+  ctx.fillStyle = '#a0331f';
+  ctx.font = '400 80px Bungee, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('★', c, c + 4);
+}
+
+// Qual fatia está embaixo do ponteiro (que fica no topo, ângulo -90°)?
+function fatiaNoPonteiro(rotacao, n) {
+  const angulo = ((-Math.PI / 2 - rotacao) % TAU + TAU) % TAU;
+  return Math.floor(angulo / (TAU / n));
+}
+
+// Gira a roda até a fatia "indice" parar embaixo do ponteiro.
+// Repare: o resultado JÁ FOI decidido; aqui só animamos até ele.
+function girarAte(indice, lista) {
+  const n = lista.length;
+  const fatia = TAU / n;
+  const duracaoMs = parseInt($('duracao').value, 10) * 1000;
+  const voltas = Math.round(duracaoMs / 1000) + 2;
+  // Desvio cosmético para não parar sempre no meio exato da fatia.
+  // Não interfere no resultado: fica sempre dentro da fatia sorteada.
+  const desvio = (Math.random() - 0.5) * fatia * 0.6;
+  const alvo = -Math.PI / 2 - (indice + 0.5) * fatia + desvio;
+  const inicio = estado.rotacao;
+  const ajuste = ((alvo - inicio) % TAU + TAU) % TAU;
+  const fim = inicio + voltas * TAU + ajuste;
+
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    let ultimaFatia = fatiaNoPonteiro(inicio, n);
+    function quadro(agora) {
+      const p = Math.min(1, (agora - t0) / duracaoMs);
+      const suave = 1 - Math.pow(1 - p, 4); // começa rápido, freia devagar
+      estado.rotacao = inicio + (fim - inicio) * suave;
+      desenharRoda(lista);
+      const atual = fatiaNoPonteiro(estado.rotacao, n);
+      if (atual !== ultimaFatia) { tique(); ultimaFatia = atual; }
+      if (p < 1) requestAnimationFrame(quadro);
+      else { estado.rotacao = fim % TAU; resolve(); }
+    }
+    requestAnimationFrame(quadro);
+  });
+}
+
+/* =====================================================================
+   4. SOM — sintetizado na hora com Web Audio, sem arquivos de áudio
+   ===================================================================== */
+
+let audioCtx = null;
+function audio() {
+  if (!$('som').checked) return null;
+  audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function tom(freq, duracao, tipo = 'square', volume = 0.08, atraso = 0) {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime + atraso;
+  const osc = a.createOscillator();
+  const ganho = a.createGain();
+  osc.type = tipo;
+  osc.frequency.value = freq;
+  ganho.gain.setValueAtTime(volume, t);
+  ganho.gain.exponentialRampToValueAtTime(0.0001, t + duracao);
+  osc.connect(ganho).connect(a.destination);
+  osc.start(t);
+  osc.stop(t + duracao);
+}
+
+const tique = () => tom(1700, 0.03, 'square', 0.035);
+const bipe = (agudo) => tom(agudo ? 1320 : 660, 0.28, 'sine', 0.22);
+
+// Rufar de tambor: rajadas curtas de ruído, cada vez mais fortes
+function rufar(segundos) {
+  const a = audio();
+  if (!a) return;
+  const amostras = a.sampleRate * 0.04;
+  const buffer = a.createBuffer(1, amostras, a.sampleRate);
+  const dados = buffer.getChannelData(0);
+  for (let i = 0; i < amostras; i++) dados[i] = (Math.random() * 2 - 1) * (1 - i / amostras);
+  for (let t = 0; t < segundos; t += 0.05) {
+    const fonte = a.createBufferSource();
+    const filtro = a.createBiquadFilter();
+    const ganho = a.createGain();
+    fonte.buffer = buffer;
+    filtro.type = 'bandpass';
+    filtro.frequency.value = 220;
+    ganho.gain.value = 0.15 + 0.5 * (t / segundos);
+    fonte.connect(filtro).connect(ganho).connect(a.destination);
+    fonte.start(a.currentTime + t);
+  }
+}
+
+function fanfarra() {
+  [523.25, 659.25, 783.99].forEach((f, i) => tom(f, 0.16, 'square', 0.07, i * 0.12));
+  [523.25, 659.25, 783.99, 1046.5].forEach((f) => tom(f, 1.2, 'sawtooth', 0.035, 0.4));
+}
+
+/* =====================================================================
+   5. SUSPENSE, REVELAÇÃO E CONFETE
+   ===================================================================== */
+
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function contagemRegressiva() {
+  const overlay = $('overlay');
+  const numero = $('contagem-regressiva');
+  $('revelacao').hidden = true;
+  numero.hidden = false;
+  overlay.hidden = false;
+  rufar(2.4);
+  for (const n of [3, 2, 1]) {
+    numero.textContent = n;
+    numero.classList.remove('pop');
+    void numero.offsetWidth; // reinicia a animação CSS
+    numero.classList.add('pop');
+    bipe(n === 1);
+    await esperar(800);
+  }
+  overlay.hidden = true;
+}
+
+function revelar(nome, posicao, total) {
+  $('contagem-regressiva').hidden = true;
+  $('nome-vencedor').textContent = nome;
+  $('posicao-vencedor').textContent = total > 1 ? `${posicao}º de ${total} vencedores` : '';
+  $('revelacao').hidden = false;
+  $('overlay').hidden = false;
+  $('btn-continuar').focus();
+  fanfarra();
+  confete();
+}
+
+// Dois "canhões" de confete nos cantos de baixo da tela
+function confete() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const canvas = $('confete');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  ctx.scale(dpr, dpr);
+  const cores = ['#ffc93c', '#e63946', '#1d70e0', '#2a9d8f', '#ffffff', '#8e44ad'];
+  const pedacos = [];
+  for (let i = 0; i < 260; i++) {
+    const daEsquerda = i % 2 === 0;
+    pedacos.push({
+      x: daEsquerda ? 0 : innerWidth,
+      y: innerHeight,
+      vx: (daEsquerda ? 1 : -1) * (3 + Math.random() * 9),
+      vy: -(12 + Math.random() * 14),
+      giro: Math.random() * TAU,
+      vgiro: (Math.random() - 0.5) * 0.4,
+      w: 6 + Math.random() * 8,
+      h: 4 + Math.random() * 6,
+      cor: cores[i % cores.length],
+    });
+  }
+  const t0 = performance.now();
+  function quadro(agora) {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of pedacos) {
+      p.vy += 0.3;
+      p.vx *= 0.99;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.giro += p.vgiro;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.giro);
+      ctx.fillStyle = p.cor;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    if (agora - t0 < 5000) requestAnimationFrame(quadro);
+    else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  }
+  requestAnimationFrame(quadro);
+}
+
+/* =====================================================================
+   6. O SORTEIO EM SI
+   ===================================================================== */
+
+async function sortear() {
+  if (estado.girando) return;
+  if (sorteioConcluido()) { novoSorteio(); return; }
+
+  const lista = participantesNaRoda();
+  if (lista.length === 0) return;
+
+  estado.girando = true;
+  atualizarTela();
+
+  // Passo 1: decidir. Aqui, e só aqui, o acaso escolhe o vencedor.
+  const indice = inteiroAleatorio(lista.length);
+  const vencedor = lista[indice];
+
+  // Passo 2: suspense
+  await contagemRegressiva();
+
+  // Passo 3: a roda gira até o vencedor já escolhido
+  await girarAte(indice, lista);
+
+  // Passo 4: registrar e comemorar
+  if (estado.vencedores.length === 0) {
+    estado.sorteios.push({ numero: estado.sorteios.length + 1, inicio: new Date(), resultados: [] });
+  }
+  estado.vencedores.push(vencedor.id);
+  const posicao = estado.vencedores.length;
+  estado.sorteios.at(-1).resultados.push({
+    nome: vencedor.nome,
+    posicao,
+    sorteado: indice + 1,
+    totalNaRoda: lista.length,
+    horario: new Date(),
+  });
+
+  revelar(vencedor.nome, posicao, qtdVencedores());
+  estado.girando = false;
+  renderizarHistorico();
+}
+
+function novoSorteio() {
+  estado.vencedores = [];
+  atualizarTela();
+}
+
+/* =====================================================================
+   7. TELA
+   ===================================================================== */
+
+const hora = (d) => d.toLocaleTimeString('pt-BR');
+
+function atualizarTela() {
+  const todos = participantes();
+  const naRoda = participantesNaRoda();
+  const qtd = qtdVencedores();
+
+  $('contagem').textContent = `${todos.length} participante${todos.length === 1 ? '' : 's'}`;
+
+  const dups = duplicados();
+  const aviso = $('aviso-duplicados');
+  aviso.hidden = dups.length === 0;
+  aviso.textContent = dups.length
+    ? `⚠️ Nomes repetidos: ${dups.map((d) => `${d.nome} (${d.vezes}×)`).join(', ')}`
+    : '';
+
+  if ($('sem-repeticao').checked) $('qtd-vencedores').max = Math.max(1, todos.length);
+  else $('qtd-vencedores').removeAttribute('max');
+
+  const btn = $('btn-sortear');
+  btn.disabled = estado.girando || todos.length === 0;
+  if (sorteioConcluido() && estado.vencedores.length > 0) btn.textContent = 'NOVO SORTEIO';
+  else if (qtd > 1) btn.textContent = `SORTEAR O ${estado.vencedores.length + 1}º!`;
+  else btn.textContent = 'SORTEAR!';
+
+  let status;
+  if (todos.length === 0) status = 'Cole os nomes ao lado para começar.';
+  else if (estado.girando) status = 'Rodando…';
+  else if (sorteioConcluido() && estado.vencedores.length > 0) status = 'Sorteio concluído! 🎉';
+  else status = `${naRoda.length} na roda · ${estado.vencedores.length} de ${qtd} vencedor${qtd === 1 ? '' : 'es'} sorteado${qtd === 1 ? '' : 's'}`;
+  $('status').textContent = status;
+
+  if (!estado.girando) desenharRoda(naRoda);
+}
+
+function renderizarHistorico() {
+  const alvo = $('historico');
+  alvo.replaceChildren();
+  if (estado.sorteios.length === 0) {
+    alvo.innerHTML = '<p class="vazio">Nenhum sorteio ainda.</p>';
+    return;
+  }
+  for (const s of [...estado.sorteios].reverse()) {
+    const bloco = document.createElement('div');
+    bloco.className = 'sorteio';
+    const titulo = document.createElement('h3');
+    titulo.textContent = `Sorteio #${s.numero} · ${hora(s.inicio)}`;
+    const ol = document.createElement('ol');
+    for (const r of s.resultados) {
+      const li = document.createElement('li');
+      const nome = document.createElement('strong');
+      nome.textContent = r.nome; // textContent: nunca interpretamos nome como HTML
+      const prova = document.createElement('span');
+      prova.className = 'comprovante';
+      prova.textContent = `nº ${r.sorteado} de ${r.totalNaRoda} · ${hora(r.horario)}`;
+      li.append(nome, prova);
+      ol.append(li);
+    }
+    bloco.append(titulo, ol);
+    alvo.append(bloco);
+  }
+}
+
+function textoDosResultados() {
+  return estado.sorteios.map((s) =>
+    `Sorteio #${s.numero} (${s.inicio.toLocaleString('pt-BR')})\n` +
+    s.resultados.map((r) => `${r.posicao}º ${r.nome} — nº ${r.sorteado} de ${r.totalNaRoda}`).join('\n')
+  ).join('\n\n');
+}
+
+/* =====================================================================
+   8. EVENTOS
+   ===================================================================== */
+
+$('nomes').value = NOMES_EXEMPLO.join('\n');
+
+// Mudar a lista ou as regras reinicia o sorteio em andamento
+for (const id of ['nomes', 'ignorar-duplicados', 'sem-repeticao', 'qtd-vencedores']) {
+  $(id).addEventListener('input', novoSorteio);
+}
+
+$('duracao').addEventListener('input', () => {
+  $('duracao-valor').textContent = `${$('duracao').value} s`;
+});
+
+$('btn-sortear').addEventListener('click', sortear);
+
+$('btn-continuar').addEventListener('click', () => {
+  $('overlay').hidden = true;
+  atualizarTela();
+  $('btn-sortear').focus();
+});
+
+$('btn-csv').addEventListener('click', () => $('arquivo-csv').click());
+$('arquivo-csv').addEventListener('change', async (e) => {
+  const arquivo = e.target.files[0];
+  if (!arquivo) return;
+  const linhas = (await arquivo.text()).split(/\r?\n/)
+    .map((l) => l.split(/[;,]/)[0].replace(/^"|"$/g, '').trim()) // pega a 1ª coluna
+    .filter(Boolean);
+  if (/^(nome|name|participante)s?$/i.test(linhas[0] || '')) linhas.shift(); // pula cabeçalho
+  const atual = $('nomes').value.trim();
+  $('nomes').value = (atual ? atual + '\n' : '') + linhas.join('\n');
+  e.target.value = '';
+  novoSorteio();
+});
+
+$('btn-copiar').addEventListener('click', async () => {
+  const texto = textoDosResultados();
+  if (!texto) return;
+  await navigator.clipboard.writeText(texto);
+  $('btn-copiar').textContent = 'Copiado!';
+  setTimeout(() => ($('btn-copiar').textContent = 'Copiar'), 1500);
+});
+
+$('btn-apresentacao').addEventListener('click', () => {
+  const ativo = document.body.classList.toggle('apresentacao');
+  if (ativo) document.documentElement.requestFullscreen?.().catch(() => {});
+  else if (document.fullscreenElement) document.exitFullscreen();
+});
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) document.body.classList.remove('apresentacao');
+});
+
+// Redesenha quando a fonte do título terminar de carregar
+document.fonts?.ready.then(() => desenharRoda());
+
+atualizarTela();
+renderizarHistorico();
+</script>
+</body>
+</html>
